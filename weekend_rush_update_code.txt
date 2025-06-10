@@ -1,0 +1,173 @@
+To persist data in your Weekend Rush Table Tracker, I'll implement localStorage to store table states. This solution works without requiring a backend server and will retain data even when the browser is refreshed or closed.
+
+Here's the implementation:
+
+```javascript
+// Add these functions at the top of your script section
+
+// Save all table states to localStorage
+function saveTableStates() {
+  const tables = [];
+  document.querySelectorAll('.table-zone').forEach(table => {
+    const tableNo = parseInt(table.querySelector('h2').textContent.replace('Table ', ''));
+    const timeDisplay = table.querySelector('.time-display').textContent;
+    const rate = parseFloat(table.querySelector('select').value);
+    const isRunning = !table.querySelector('.start-btn').disabled;
+    const isPaused = table.querySelector('.pause-btn').textContent === 'Continue';
+    const startTime = table.dataset.startTime || null;
+    const elapsedTime = parseInt(table.dataset.elapsedTime || 0);
+    const result = table.querySelector('.result').textContent;
+    
+    tables.push({
+      tableNo,
+      timeDisplay,
+      rate,
+      isRunning,
+      isPaused,
+      startTime,
+      elapsedTime,
+      result
+    });
+  });
+  
+  localStorage.setItem('tableStates', JSON.stringify({
+    tables,
+    savedAt: Date.now()
+  }));
+}
+
+// Load table states from localStorage
+function loadTableStates() {
+  const data = localStorage.getItem('tableStates');
+  if (!data) return false;
+  
+  const { tables, savedAt } = JSON.parse(data);
+  const timeDiff = (Date.now() - savedAt) / 1000;
+  
+  return { tables, timeDiff };
+}
+```
+
+Now modify your createTable function:
+
+```javascript
+function createTable(tableNo) {
+  let startTime = null;
+  let elapsedTime = 0;
+  let timerInterval = null;
+  let isPaused = false;
+  let selectedRate = defaultRates[tableNo];
+
+  const zone = document.createElement('div');
+  zone.className = 'table-zone';
+  zone.dataset.tableNo = tableNo;
+  zone.dataset.elapsedTime = elapsedTime;
+
+  // ... (existing code for creating elements)
+
+  function updateTimer() {
+    if (!isPaused) {
+      elapsedTime = Math.floor((Date.now() - startTime) / 1000);
+      zone.dataset.elapsedTime = elapsedTime;
+    }
+    const min = String(Math.floor(elapsedTime / 60)).padStart(2, '0');
+    const sec = String(elapsedTime % 60).padStart(2, '0');
+    timeDisplay.textContent = `${min}:${sec}`;
+    saveTableStates(); // Save state on each timer update
+  }
+
+  startBtn.onclick = () => {
+    startTime = Date.now();
+    zone.dataset.startTime = startTime;
+    isPaused = false;
+    timerInterval = setInterval(updateTimer, 1000);
+    startBtn.disabled = true;
+    pauseBtn.disabled = false;
+    endBtn.disabled = false;
+    result.textContent = '';
+    saveTableStates(); // Save state when timer starts
+  };
+
+  pauseBtn.onclick = () => {
+    if (isPaused) {
+      startTime = Date.now() - elapsedTime * 1000;
+      zone.dataset.startTime = startTime;
+      timerInterval = setInterval(updateTimer, 1000);
+      pauseBtn.textContent = 'Pause';
+    } else {
+      clearInterval(timerInterval);
+      pauseBtn.textContent = 'Continue';
+    }
+    isPaused = !isPaused;
+    saveTableStates(); // Save state when timer is paused/resumed
+  };
+
+  endBtn.onclick = () => {
+    // ... (existing code)
+    saveTableStates(); // Save state when timer ends
+  };
+
+  tablesContainer.appendChild(zone);
+  return { zone, startBtn, pauseBtn, endBtn, timeDisplay, rateDropdown, result };
+}
+```
+
+Finally, add code to restore state on page load:
+
+```javascript
+// Add this after createTable function but before the tables are created
+function initializeWithSavedState() {
+  const savedState = loadTableStates();
+  if (!savedState) {
+    // No saved state, create new tables
+    [1, 2, 3].forEach(createTable);
+    return;
+  }
+  
+  const { tables, timeDiff } = savedState;
+  
+  tables.forEach(tableState => {
+    const { tableNo, rate, isRunning, isPaused, elapsedTime, result } = tableState;
+    const tableObj = createTable(tableNo);
+    
+    // Restore rate
+    tableObj.rateDropdown.value = rate;
+    
+    // Restore result
+    tableObj.result.textContent = result;
+    
+    // Restore timer state
+    if (isRunning) {
+      if (isPaused) {
+        // For paused timers
+        tableObj.startBtn.disabled = true;
+        tableObj.pauseBtn.disabled = false;
+        tableObj.pauseBtn.textContent = 'Continue';
+        tableObj.endBtn.disabled = false;
+        
+        // Set elapsed time
+        tableObj.zone.dataset.elapsedTime = elapsedTime;
+        const min = String(Math.floor(elapsedTime / 60)).padStart(2, '0');
+        const sec = String(elapsedTime % 60).padStart(2, '0');
+        tableObj.timeDisplay.textContent = `${min}:${sec}`;
+      } else {
+        // For running timers, simulate clicking start
+        // Adjust the elapsed time based on the time difference
+        tableObj.zone.dataset.elapsedTime = parseInt(elapsedTime) + Math.floor(timeDiff);
+        tableObj.startBtn.click();
+      }
+    }
+  });
+}
+
+// Replace [1, 2, 3].forEach(createTable) with:
+initializeWithSavedState();
+```
+
+This implementation:
+1. Saves all table states to localStorage whenever something changes
+2. Restores the states when the page loads
+3. Continues running timers from where they left off
+4. Preserves paused state and completed calculations
+
+The data will persist across page refreshes and browser restarts as long as the browser's storage isn't cleared.
