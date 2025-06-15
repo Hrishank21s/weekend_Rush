@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Weekend Rush Table Tracker Z2</title>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600&display=swap" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: 'Outfit', sans-serif;
+      margin: 0;
+      padding: 40px 20px;
+      background: linear-gradient(to right, #0f2027, #203a43, #2c5364);
+      color: #fff;
+    }
+    .container { max-width: 1100px; margin: auto; }
+    h1 {
+      text-align: center;
+      font-weight: 600;
+      margin-bottom: 10px;
+      color: #f8f9fa;
+    }
+    #live-clock {
+      text-align: center;
+      font-size: 1.5rem;
+      margin-bottom: 40px;
+      color: #00e676;
+    }
+    .table-zone {
+      background: #1b1b1b;
+      border: 2px solid #4caf50;
+      border-radius: 20px;
+      padding: 30px;
+      margin-bottom: 30px;
+      box-shadow: 0 0 20px rgba(76, 175, 80, 0.2);
+      transition: transform 0.3s ease;
+    }
+    .table-zone:hover { transform: scale(1.02); }
+    .table-zone h2 {
+      margin-top: 0;
+      font-size: 1.8rem;
+      color: #4caf50;
+    }
+    .controls { margin: 20px 0; }
+    .controls button {
+      margin: 5px;
+      padding: 10px 20px;
+      border: none;
+      border-radius: 12px;
+      cursor: pointer;
+      font-size: 1rem;
+      transition: all 0.2s ease;
+    }
+    .controls button:hover { opacity: 0.8; }
+    .controls button:disabled {
+      background: #666;
+      cursor: not-allowed;
+    }
+    .controls .start-btn { background: #4caf50; color: white; }
+    .controls .pause-btn { background: #ff9800; color: white; }
+    .controls .end-btn { background: #f44336; color: white; }
+    .split-input {
+      margin-top: 20px;
+    }
+    .split-input input {
+      padding: 10px;
+      border-radius: 10px;
+      border: none;
+      width: calc(100% - 120px);
+      max-width: 300px;
+      font-size: 1rem;
+    }
+    .split-input button {
+      margin-left: 10px;
+      padding: 10px 15px;
+      font-size: 1rem;
+      border-radius: 10px;
+      background-color: #ff9800;
+      color: white;
+      border: none;
+      cursor: pointer;
+    }
+    .split-input button:hover { background-color: #f57c00; }
+    .result {
+      margin-top: 20px;
+      font-weight: 600;
+      color: #fff;
+      white-space: pre-line;
+    }
+    .session-log {
+      margin-top: 15px;
+      font-size: 1rem;
+      color: #00e5ff;
+      max-height: 120px;
+      overflow-y: auto;
+      border-top: 1px solid #00e5ff;
+      padding-top: 10px;
+    }
+    .time-display {
+      font-size: 2.5rem;
+      font-weight: bold;
+      margin: 15px 0;
+      color: #fff;
+    }
+    .rate-selector {
+      margin: 10px 0;
+    }
+    .rate-selector select {
+      padding: 8px;
+      font-size: 1rem;
+      border-radius: 10px;
+      border: none;
+      margin-left: 10px;
+    }
+    .totals {
+      background: #222;
+      border: 2px solid #4caf50;
+      border-radius: 20px;
+      padding: 15px 25px;
+      margin: 20px auto;
+      max-width: 400px;
+      color: #4caf50;
+      font-weight: 600;
+      text-align: center;
+      box-shadow: 0 0 15px rgba(76, 175, 80, 0.3);
+    }
+    .clear-btn-wrapper {
+      text-align: center;
+      margin-top: 20px;
+    }
+    .clear-btn {
+      background: #e53935;
+      color: white;
+      border: none;
+      border-radius: 15px;
+      padding: 12px 25px;
+      font-size: 1.1rem;
+      cursor: pointer;
+      box-shadow: 0 0 10px rgba(229, 57, 53, 0.5);
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Weekend Rush Table Tracker</h1>
+    <div id="live-clock"></div>
+    <div id="tables"></div>
+    <div class="totals" id="daily-totals">
+      <div id="total-time">Total run time of the day: 0 min</div>
+      <div id="total-money">Total table money of the day: ₹0.00</div>
+    </div>
+
+    <!-- Clear All Button -->
+    <div class="clear-btn-wrapper">
+      <button class="clear-btn" onclick="clearAllData()">🧹 Clear All Table Data</button>
+    </div>
+  </div>
+
+  <script>
+    function updateClock() {
+      const now = new Date();
+      const formatted = now.toLocaleTimeString('en-IN', { hour12: false });
+      document.getElementById('live-clock').textContent = `Current Time: ${formatted}`;
+    }
+    setInterval(updateClock, 1000);
+    updateClock();
+
+    // ✅ Updated default rates here
+    const defaultRates = { 1: 3, 2: 4, 3: 4.5 };
+    const tablesContainer = document.getElementById('tables');
+
+    function updateDailyTotals() {
+      let totalTime = 0;
+      let totalMoney = 0;
+      for (let t = 1; t <= 3; t++) {
+        const record = JSON.parse(localStorage.getItem(`table${t}Record`));
+        if (record) {
+          totalTime += record.totalRunTime || 0;
+          totalMoney += record.totalMoney || 0;
+        }
+      }
+      document.getElementById('total-time').textContent = `Total run time of the day: ${totalTime} min`;
+      document.getElementById('total-money').textContent = `Total table money of the day: ₹${totalMoney.toFixed(2)}`;
+    }
+
+    function clearAllData() {
+      if (confirm("Are you sure you want to clear all table data?")) {
+        [1, 2, 3].forEach(t => localStorage.removeItem(`table${t}Record`));
+        location.reload();
+      }
+    }
+
+    function createTable(tableNo) {
+      let startTime = null;
+      let elapsedTime = 0;
+      let timerInterval = null;
+      let isPaused = false;
+      let selectedRate = defaultRates[tableNo];
+      let record = JSON.parse(localStorage.getItem(`table${tableNo}Record`)) || {
+        sessions: [],
+        totalRunTime: 0,
+        totalMoney: 0
+      };
+
+      const zone = document.createElement('div');
+      zone.className = 'table-zone';
+
+      const title = document.createElement('h2');
+      title.textContent = `Table ${tableNo}`;
+      zone.appendChild(title);
+
+      const rateSelector = document.createElement('div');
+      rateSelector.className = 'rate-selector';
+      rateSelector.innerHTML = `
+        Rate/min:
+        <select>
+          <option value="2">2</option>
+          <option value="2.5">2.5</option>
+          <option value="3">3</option>
+          <option value="4">4</option>
+          <option value="4.5">4.5</option>
+          <option value="5">5</option>
+          <option value="6">6</option>
+        </select>
+      `;
+      zone.appendChild(rateSelector);
+
+      const rateDropdown = rateSelector.querySelector('select');
+      rateDropdown.value = selectedRate.toString();
+      rateDropdown.onchange = (e) => {
+        selectedRate = parseFloat(e.target.value);
+      };
+
+      const timeDisplay = document.createElement('div');
+      timeDisplay.className = 'time-display';
+      timeDisplay.textContent = '00:00';
+      zone.appendChild(timeDisplay);
+
+      const controls = document.createElement('div');
+      controls.className = 'controls';
+
+      const startBtn = document.createElement('button');
+      startBtn.textContent = 'Start';
+      startBtn.classList.add('start-btn');
+
+      const pauseBtn = document.createElement('button');
+      pauseBtn.textContent = 'Pause';
+      pauseBtn.classList.add('pause-btn');
+      pauseBtn.disabled = true;
+
+      const endBtn = document.createElement('button');
+      endBtn.textContent = 'End';
+      endBtn.classList.add('end-btn');
+      endBtn.disabled = true;
+
+      controls.appendChild(startBtn);
+      controls.appendChild(pauseBtn);
+      controls.appendChild(endBtn);
+      zone.appendChild(controls);
+
+      const splitInput = document.createElement('div');
+      splitInput.className = 'split-input';
+
+      const input = document.createElement('input');
+      input.type = 'number';
+      input.min = '1';
+      input.placeholder = 'No. of players';
+
+      const splitBtn = document.createElement('button');
+      splitBtn.textContent = 'Split';
+
+      const result = document.createElement('div');
+      result.className = 'result';
+
+      splitInput.appendChild(input);
+      splitInput.appendChild(splitBtn);
+      splitInput.appendChild(result);
+      zone.appendChild(splitInput);
+
+      const sessionLog = document.createElement('div');
+      sessionLog.className = 'session-log';
+      zone.appendChild(sessionLog);
+
+      if (record.sessions.length) {
+        record.sessions.forEach(s => {
+          sessionLog.innerHTML += `${s.timeline} (₹${s.amount.toFixed(2)})<br>`;
+        });
+      }
+
+      function updateTimer() {
+        if (!isPaused) {
+          elapsedTime = Math.floor((Date.now() - startTime) / 1000);
+        }
+        const min = String(Math.floor(elapsedTime / 60)).padStart(2, '0');
+        const sec = String(elapsedTime % 60).padStart(2, '0');
+        timeDisplay.textContent = `${min}:${sec}`;
+      }
+
+      startBtn.onclick = () => {
+        startTime = Date.now();
+        isPaused = false;
+        timerInterval = setInterval(updateTimer, 1000);
+        startBtn.disabled = true;
+        pauseBtn.disabled = false;
+        endBtn.disabled = false;
+        result.textContent = '';
+      };
+
+      pauseBtn.onclick = () => {
+        if (isPaused) {
+          startTime = Date.now() - elapsedTime * 1000;
+          timerInterval = setInterval(updateTimer, 1000);
+          pauseBtn.textContent = 'Pause';
+        } else {
+          clearInterval(timerInterval);
+          pauseBtn.textContent = 'Continue';
+        }
+        isPaused = !isPaused;
+      };
+
+      endBtn.onclick = () => {
+        clearInterval(timerInterval);
+        const amount = (elapsedTime / 60 * selectedRate).toFixed(2);
+        const endTime = Date.now();
+        const startFormatted = new Date(startTime).toLocaleTimeString('en-IN', { hour12: false });
+        const endFormatted = new Date(endTime).toLocaleTimeString('en-IN', { hour12: false });
+        const sessionTimeline = `${startFormatted} > ${endFormatted}`;
+        result.textContent = `Total: ₹${amount}\nSession: ${sessionTimeline}`;
+        sessionLog.innerHTML += `${sessionTimeline} (₹${amount})<br>`;
+
+        record.sessions.push({ timeline: sessionTimeline, amount: parseFloat(amount) });
+        record.totalRunTime += Math.floor(elapsedTime / 60);
+        record.totalMoney += parseFloat(amount);
+        localStorage.setItem(`table${tableNo}Record`, JSON.stringify(record));
+        updateDailyTotals();
+
+        const onSplit = () => {
+          const people = parseInt(input.value);
+          if (people && people > 0) {
+            const perPerson = (amount / people).toFixed(2);
+            result.textContent = `Total: ₹${amount}\nPer Player: ₹${perPerson}\nSession: ${sessionTimeline}`;
+          } else {
+            result.textContent = 'Enter valid number of players!';
+          }
+        };
+
+        splitBtn.onclick = onSplit;
+        input.addEventListener('keyup', (e) => {
+          if (e.key === 'Enter') {
+            onSplit();
+          }
+        });
+
+        pauseBtn.disabled = true;
+        endBtn.disabled = true;
+        startBtn.disabled = false;
+        pauseBtn.textContent = 'Pause';
+        elapsedTime = 0;
+      };
+
+      tablesContainer.appendChild(zone);
+    }
+
+    [1, 2, 3].forEach(createTable);
+    updateDailyTotals();
+  </script>
+</body>
+</html>
